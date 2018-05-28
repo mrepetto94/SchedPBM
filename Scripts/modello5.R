@@ -1,20 +1,25 @@
 library("Rglpk")
+library("dplyr")
 library("qpcR") 
 
 lagmatrix <- function(x,max.lag) embed(c(rep(NA,max.lag), x), max.lag+1)
 
-Type <- c("N", "SN", "M1","MP","P1","P3","M+N","SP1")
+
+Type <- c("N", "SN", "M1","MP","P1","P3")
 
 nt <- length(Type)
-Hour <- c(3,7,7,8,6,6,6,7.5)
+Hour <- c(3,7,7,8,6,6)
 nh <- length(Hour)
 
 Schedule <- data.frame(Type,Hour)
 
 days <- 1:3
 nd <- length(days)
+restday <- 3
 
-Worker <- c("Tizio", "Caio")
+
+Worker <- c("Solari","Laino","Stella","Forgali","Giraudi","Vitale","Ileshi","Abid")
+
 nw <- length(Worker) 
 
 weeklyHour <- c(42,42)
@@ -40,6 +45,7 @@ i <- 1
 presence  <- ifelse(presence == TRUE, 1, 0)
 
 
+#####################Soft constraints#######################
 #create the binary constraint for the deviational variable
 for (q in 1: nw){	
 	slot<- (q-1)*n
@@ -48,36 +54,58 @@ for (q in 1: nw){
 	mat[q, (ncol - nw + q)] <- -1 
 }
 
-#creates the daily hour constraint
-replace <- rep(c((Hour),rep(0,n-nh)),nw)
+#####################Hard constraints#######################
+#creates daily structure of the schedule 
 
-replace <-lagmatrix(replace, nt*nd)[,c(1,(1+(1*nt)),(1+(2*nt)))] #to be adjusted with the days
+replace <- rep(c(1,rep(0,n-1)),nw)
+replace <-lagmatrix(replace, n-1)
 replace[is.na(replace)] <- 0
-matobj <- matrix(0L, ncol = nd, nrow = nw)
+matobj <- matrix(0L, ncol = n, nrow = nw)
 replace <- t(rbind(replace, matobj))
 
 mat <- rbind(mat, replace)
 
-#creates the schedule type constraints
-#replace <- rep(c(1,rep(0,n-1)),nw)
-#replace <-lagmatrix(replace, n-1) #to be adjusted with the days
-#replace[is.na(replace)] <- 0
-#matobj <- matrix(0L, ncol = n, nrow = nw)
-#replace <- t(rbind(replace, matobj))
+#create daily limit constraint
+replace <- c(rep(1,nt),rep(0,(nt*nd*nw)-nt))
+replace <- lagmatrix(replace, (n*nw)-1)[, seq(1,nt*nw*nd,nt)]
+replace[is.na(replace)]<-0
+matobj <- matrix(0L, ncol = dim(replace)[2], nrow = nw)
+replace <- t(rbind(replace, matobj))
 
-#mat <- rbind(mat, replace)
+mat <- rbind(mat, replace)
 
+#create the constraint related to the rest days 
+replace <- c(rep(1,nt*restday),rep(0,((n*nw)-(nt*restday))))
+span <-nd - restday
+replace <- lagmatrix(replace, ((nt*span)+1))[,seq(1,(span*nt)+1,nt)]
 
+i<-1
+replace <- as.matrix(replace)
+reminder <- replace
+for(i in 1:(nw-1)){
+reminder <-rbind(matrix(NA,ncol=dim(reminder)[2],nrow=n),head(reminder,-n))
+replace <- cbind(replace,reminder)
+}
+
+replace[is.na(replace)] <- 0
+matobj <- matrix(0L, ncol = dim(replace)[2], nrow = nw)
+replace <- t(rbind(replace, matobj))
+
+mat <- rbind(mat, replace)
+
+##################Left side declariation and variable type #
 dir <- c(rep("==",nw),
-	 rep(">=",nd))
-#	 rep(">=",n))
+	 rep(">=",nt*nd),
+	 rep("<=",nd*nw),
+	 rep("<=", nw+(span*nw)))
 
 type <- c(rep("B",n*nw),
 	rep("C", nw))
 
 rhs <- c(rep(0,nw),
-	 rep(36,nd))
-#	 rep(1,n))
+	 rep(c(rep(1,2),2,rep(1,3)),nd),
+	 rep(1, nd*nw),
+	 rep(restday-1, nw+(span*nw)))
 
 #bounds <- list(lower = list(ind = 1:ncol, val = rep(0,ncol)),
 #	       upper = list(ind = (((n*nw)+1):ncol), monthlyHour))
@@ -87,13 +115,12 @@ system <- data.frame(mat,dir,rhs)
 sol <- Rglpk_solve_LP(obj,mat,dir,rhs,types=type)
 
 solution  <- sol$solution[1:(length(sol$solution)-nw)]
-solution <- matrix(solution, nrow=nw,ncol=nt*nd, byrow=TRUE)
+solution <- matrix(solution, nrow=nw, byrow=TRUE)
 df <- data.frame(solution)
 colnames(df)<-rep(Type,nd)
 rownames(df)<-Worker
-t(df)
+df <- t(df)
 
 write.csv2(system,"system.csv")
-
 
 

@@ -18,12 +18,12 @@ nd <- length(days)
 restday <- 3
 
 
-Worker <- c("Solari","Laino","Stella","Forgali","Giraudi","Vitale","Ileshi","Abid")
+Worker <- c("Solari","Laino","Stella","Forgali","Giraudi","Vitale","Ileshi","Abid","Repetto","Bertecco","Vezzoso","Ferrari")
 
 nw <- length(Worker) 
 
 weeklyHour <- c(42,42)
-monthlyHour <- c(170,170)
+monthlyHour <- rep(160,nw)
 
 presence <- matrix(TRUE, nrow = nw, ncol=(nt*nd),byrow=TRUE)
 
@@ -93,6 +93,13 @@ replace <- t(rbind(replace, matobj))
 
 mat <- rbind(mat, replace)
 
+#create the rest/holyday/ill constraint
+replace <- c(1,rep(0,ncol-nw-1))
+replace <- lagmatrix(replace, ncol - nw -1)
+replace [is.na(replace)] <- 0
+matobj <- matrix(0L, ncol = dim(replace)[2], nrow = nw)
+replace <- t(rbind(replace, matobj))
+####to be completed######
 ##################Left side declariation and variable type #
 dir <- c(rep("==",nw),
 	 rep(">=",nt*nd),
@@ -107,20 +114,22 @@ rhs <- c(rep(0,nw),
 	 rep(1, nd*nw),
 	 rep(restday-1, nw+(span*nw)))
 
-#bounds <- list(lower = list(ind = 1:ncol, val = rep(0,ncol)),
-#	       upper = list(ind = (((n*nw)+1):ncol), monthlyHour))
+bounds <- list(lower = list(ind = 1:ncol, val = rep(0,ncol)),
+	       upper = list(ind = ((ncol-nw+1):ncol),val = monthlyHour))
 
 system <- data.frame(mat,dir,rhs)
 
-sol <- Rglpk_solve_LP(obj,mat,dir,rhs,types=type)
+sol <- Rglpk_solve_LP(obj,mat,dir,rhs,types=type, bounds = bounds)
 
 solution  <- sol$solution[1:(length(sol$solution)-nw)]
+SumWorker <-tail(sol$solution,nw) 
 solution <- matrix(solution, nrow=nw, byrow=TRUE)
 df <- data.frame(solution)
 colnames(df)<-rep(Type,nd)
 rownames(df)<-Worker
 df <- t(df)
-
+df <- rbind(df,SumWorker)
+df
 write.csv2(system,"system.csv")
 
 

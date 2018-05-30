@@ -13,9 +13,9 @@ nh <- length(Hour)
 
 Schedule <- data.frame(Type,Hour)
 
-days <- 1:3
+days <- 1:14
 nd <- length(days)
-restday <- 3
+restday <- 6
 
 
 Worker <- c("Solari","Laino","Stella","Forgali","Giraudi","Vitale","Ileshi","Abid","Repetto","Bertecco","Vezzoso","Ferrari")
@@ -43,6 +43,8 @@ q <- 1
 i <- 1
 
 presence  <- ifelse(presence == TRUE, 1, 0)
+presence[1,] <- presence [1,] * 0
+presence <- as.vector(t(presence))
 
 
 #####################Soft constraints#######################
@@ -99,12 +101,22 @@ replace <- lagmatrix(replace, ncol - nw -1)
 replace [is.na(replace)] <- 0
 matobj <- matrix(0L, ncol = dim(replace)[2], nrow = nw)
 replace <- t(rbind(replace, matobj))
-####to be completed######
+
+mat <- rbind(mat, replace)
+
+#create the P3/M1 constraint
+pthree <- match("P3", Type)
+mone <- match("M1", Type)+nt
+replace <- c(rep(0,pthree-1),1,rep(0,mone-1-pthree),1,rep(0,(nt*2)-(mone)))
+replace <- lagmatrix(replace,ncol)
+
+
 ##################Left side declariation and variable type #
 dir <- c(rep("==",nw),
 	 rep(">=",nt*nd),
 	 rep("<=",nd*nw),
-	 rep("<=", nw+(span*nw)))
+	 rep("<=", nw+(span*nw)),
+	 rep("<=", length(presence)))
 
 type <- c(rep("B",n*nw),
 	rep("C", nw))
@@ -112,7 +124,8 @@ type <- c(rep("B",n*nw),
 rhs <- c(rep(0,nw),
 	 rep(c(rep(1,2),2,rep(1,3)),nd),
 	 rep(1, nd*nw),
-	 rep(restday-1, nw+(span*nw)))
+	 rep(restday-1, nw+(span*nw)),
+	 presence)
 
 bounds <- list(lower = list(ind = 1:ncol, val = rep(0,ncol)),
 	       upper = list(ind = ((ncol-nw+1):ncol),val = monthlyHour))

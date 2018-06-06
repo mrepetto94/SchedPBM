@@ -5,25 +5,25 @@ library("qpcR")
 lagmatrix <- function(x,max.lag) embed(c(rep(NA,max.lag), x), max.lag+1)
 
 
-Type <- c("N", "SN","N/SN", "M1","MP","P1","P3")
+Type <- c("N", "SN", "M1","MP","P1","P3")
 
 nt <- length(Type)
-Hour <- c(3,7,10,7,8,6,6)
+Hour <- c(3,7,7,8,6,6)
 nh <- length(Hour)
 
 Schedule <- data.frame(Type,Hour)
 
-days <- 1:30
+days <- 1:8
 nd <- length(days)
-restday <- 6
+restday <- 7
 
 
-Worker <- c("Solari","Laino","Stella","Forgali","Giraudi","Vitale","Ileshi","Abid","Repetto","Bertecco","Vezzoso","Ferrari","Tizio","Caio","Sempronio","Terzenio","Lucillo","Catullo")
+Worker <- c("Solari","Laino","Stella","Forgali","Giraudi","Vitale","Ileshi","Abid","Prova")
 
 nw <- length(Worker) 
 
-weeklyHour <- rep(40,nw)
-monthlyHour <- rep(160,nw)
+weeklyHour <- rep(42,nw)
+monthlyHour <- rep(170,nw)
 
 presence <- matrix(TRUE, nrow = nw, ncol=(nt*nd),byrow=TRUE)
 
@@ -44,24 +44,14 @@ i <- 1
 
 presence  <- ifelse(presence == TRUE, 1, 0)
 
-presence[1,] <- rep(c(1,1,1,0,0,0,0),nd)
-presence[2,] <- rep(c(1,1,1,0,0,0,0),nd)
-presence[3,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[4,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[5,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[6,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[7,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[8,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[9,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[10,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[11,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[12,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[13,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[14,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[15,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[16,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[17,] <- rep(c(0,0,0,1,1,1,1),nd)
-presence[18,] <- rep(c(0,0,0,1,1,1,1),nd)
+presence[1,] <- rep(c(1,1,1,1,1,1),nd)
+presence[2,] <- rep(c(1,1,1,1,1,1),nd)
+presence[3,] <- rep(c(1,1,1,1,1,1),nd)
+presence[4,] <- rep(c(1,1,1,1,1,1),nd)
+presence[5,] <- rep(c(1,1,1,1,1,1),nd)
+presence[6,] <- rep(c(1,1,1,1,1,1),nd)
+presence[7,] <- rep(c(1,1,1,1,1,1),nd)
+presence[8,] <- rep(c(1,1,1,1,1,1),nd)
 
 presence <- as.vector(t(presence))
 
@@ -76,16 +66,6 @@ for (q in 1: nw){
 }
 
 #####################Hard constraints#######################
-#creates daily structure of the schedule [nights] 
-
-replace <- rep(c(0.3,0.7,1,rep(0,n-3)),nw)
-replace <-lagmatrix(replace, n-1)[, seq(1,nt*nd,nt)]
-replace[is.na(replace)] <- 0
-matobj <- matrix(0L, ncol = nd, nrow = nw)
-replace <- t(rbind(replace, matobj))
-
-mat <- rbind(mat, replace)
-
 #creates daily structure of the schedule [no nights] 
 
 replace <- rep(c(1,rep(0,n-1)),nw)
@@ -93,7 +73,6 @@ replace <-lagmatrix(replace, n-1)
 replace[is.na(replace)] <- 0
 matobj <- matrix(0L, ncol = n, nrow = nw)
 replace <- t(rbind(replace, matobj))
-replace <- replace[-c(seq(1,nt*nd,nt),seq(2,nt*nd,nt),seq(3,nt*nd,nt)),]
 
 mat <- rbind(mat, replace)
 
@@ -156,8 +135,7 @@ mat <- rbind(mat, replace)
 
 ##################Left side declariation and variable type #
 dir <- c(rep("==",nw),
-	 rep(">=",nd),
-	 rep(">=",(nt-3)*nd),
+	 rep(">=",(nt*nd)),
 	 rep("<=",nd*nw),
 	 rep("<=", nw+(span*nw)),
 	 rep("<=", length(presence)),
@@ -168,8 +146,7 @@ type <- c(rep("B",n*nw),
 	rep("C", nw))
 
 rhs <- c(rep(0,nw),
-	 rep(1,nd),
-	 rep(c(2,rep(1,3)),nd),
+	 rep(c(1,1,2,rep(1,3)),nd),
 	 rep(1, nd*nw),
 	 rep(restday-1, nw+(span*nw)),
 	 presence,
@@ -180,7 +157,7 @@ bounds <- list(lower = list(ind = 1:ncol, val = rep(0,ncol)),
 	       upper = list(ind = ((ncol-nw+1):ncol),val = monthlyHour))
 
 system <- data.frame(mat,dir,rhs)
-#write.csv2("system.csv",system)
+write.csv2(system,"system.csv")
 
 sol <- Rglpk_solve_LP(obj,mat,dir,rhs,types=type, bounds = bounds)
 
